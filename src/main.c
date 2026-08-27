@@ -50,7 +50,7 @@ int main(void){
     static uint8_t buf[240 * 10 * 2]; 
     lv_display_set_buffers(my_display, buf, NULL, sizeof(buf), LV_DISPLAY_RENDER_MODE_PARTIAL);
     
-    synth_ui_init();
+    synth_ui_t ui = {0};
 
     //experementing with function pointers inside a struct.
     int32_t synth_test_get = 0;
@@ -58,7 +58,10 @@ int main(void){
     synth_data_init(&synth);
     synth.set_attack(&synth, 25);
     synth_test_get = synth.get_attack(&synth);
-    synth_ui_test_print(synth_test_get);
+    
+    //Ok here is the new ui struct.
+    synth_ui_init(&ui, &synth);
+
     //need to make a note how this works so i don't forget. it's usefull!! I think this is pretty standard
     //stuff to know by heart. ToDo: build the synth struct to work like this. I think it's good for cleaner
     //execution of code.
