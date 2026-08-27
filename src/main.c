@@ -53,9 +53,12 @@ int main(void){
     synth_ui_init();
 
     //experementing with function pointers inside a struct.
+    int32_t synth_test_get = 0;
     synth_data_t synth = {0};
     synth_data_init(&synth);
     synth.set_attack(&synth, 25);
+    synth_test_get = synth.get_attack(&synth);
+    synth_ui_test_print(synth_test_get);
     //need to make a note how this works so i don't forget. it's usefull!! I think this is pretty standard
     //stuff to know by heart. ToDo: build the synth struct to work like this. I think it's good for cleaner
     //execution of code.
