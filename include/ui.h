@@ -3,7 +3,7 @@
 #include "lvgl.h"
 #include "synth.h"
 #include "main.h"
-//#include <stdio.h>
+#include <stdio.h>
 #include <stdlib.h>
 
 //the font is definedt to use the 20 size in lv_conf.h
@@ -39,15 +39,29 @@ typedef struct synth_ui_t{
     //A selected color I think to make this simple we make a box that we can move around with a lighter color
     uint32_t active_color;
     //under the text obj
-    uint32_t active_menu_item;
+    uint32_t active_menu_item; //is this the active selected item?
     //How to build the menu an array of menu pages. or should we simply let it scroll up and down?
     //for starters i think we simply make an array of menu items these probably be a item struct
     synth_ui_item_t *menu_items;
     //for a pointer we need to keep track how manny items there are.
     uint32_t item_count;
+
+    void (*set_value)(struct synth_ui_t *ui, int32_t value);
+    void (*update_menu)(struct synth_ui_t *ui);
+    void (*nav_next)(struct synth_ui_t *ui);
+    void (*nav_prev)(struct synth_ui_t *ui);
+    void (*val_up)(struct synth_ui_t *ui);
+    void (*val_down)(struct synth_ui_t *ui);
+
 }synth_ui_t;
 
 //void synth_ui_init(void);
+void synth_ui_val_up(synth_ui_t *ui);
+void synth_ui_val_down(synth_ui_t *ui);
+void synth_ui_nav_prev(synth_ui_t *ui);
+void synth_ui_nav_next(synth_ui_t *ui);
+void synth_ui_update_menu(synth_ui_t *synth_ui);
+void synth_ui_set_value(synth_ui_t *synth_ui, int32_t value);
 void synth_ui_init(synth_ui_t *synth_ui, synth_data_t *synth);
 void synth_ui_test_print(int32_t value);
 void synth_ui_add_item(synth_ui_t *synth_ui, char *name, volatile int32_t *value, bool active);

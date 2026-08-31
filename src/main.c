@@ -19,13 +19,17 @@ SPI_HandleTypeDef hspi1;
 #endif
 lv_display_t *my_display; // Global display handle 
 
+//for EXTI interupts we have to define these global.
+synth_ui_t ui = {0};
+synth_data_t synth = {0};
+
 
 //some globals for the audio
 //Will probably move this stuff over to the synth.c/h
 #define AUDIO_FS     48000
 #define BUF_SAMPLES 128 //DO not change this. Because it's kinda hardcoded inside the Dac driver now.
 #define AMP         0.01 //Close to electric guitar level on my saw function
-static uint32_t transfer_count = 0;
+uint32_t transfer_count = 0;
 uint16_t phase = 0;
 
 volatile uint16_t s_buf[BUF_SAMPLES*2];
@@ -64,18 +68,19 @@ int main(void){
     static uint8_t buf[240 * 10 * 2]; 
     lv_display_set_buffers(my_display, buf, NULL, sizeof(buf), LV_DISPLAY_RENDER_MODE_PARTIAL);
     
-    synth_ui_t ui = {0};
-
-    //experementing with function pointers inside a struct.
-    //These are working.
-    int32_t synth_test_get = 0;
-    synth_data_t synth = {0};
     synth_data_init(&synth);
-    synth.set_attack(&synth, 25);
-    synth_test_get = synth.get_attack(&synth);
-    
     //Ok here is the new ui struct.
     synth_ui_init(&ui, &synth);
+
+    //Test the ui function pointer.
+        ui.set_value(&ui, (int32_t)10);
+    //test menu update.
+        ui.active_menu_item = 1;
+        ui.set_value(&ui, (int32_t)10);
+        ui.update_menu(&ui);
+        ui.nav_next(&ui);
+        //it works. selection changes. and values print
+
     //Ui is now creating a struct with the menu and items hooked to the synth struct.
     //will let me code functions to change synth values and navigate the menu.
 
@@ -90,6 +95,7 @@ int main(void){
     {
         lv_timer_handler();
         HAL_Delay(100);/* code */
+        ui.update_menu(&ui);
     }
     
 
@@ -103,6 +109,22 @@ void SysTick_Handler(void)
     //lv_timer_handler(); is connected som way so i guess we only need update in main while loop.
 }
 
+void EXTI0_IRQHandler(void)
+{
+    HAL_GPIO_EXTI_IRQHandler(GPIO_PIN_0);
+}
+void EXTI1_IRQHandler(void)
+{
+    HAL_GPIO_EXTI_IRQHandler(GPIO_PIN_1);
+}
+void EXTI2_IRQHandler(void)
+{
+    HAL_GPIO_EXTI_IRQHandler(GPIO_PIN_2);
+}
+void EXTI3_IRQHandler(void)
+{
+    HAL_GPIO_EXTI_IRQHandler(GPIO_PIN_3);
+}
 void EXTI9_5_IRQHandler(void)
 {
     // Here scheck what pinn was triggered
@@ -148,6 +170,12 @@ void HAL_SPI_TxCpltCallback(SPI_HandleTypeDef *hspi) {
 }
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 {
+    static uint32_t last_press_time_blue = 0;
+    static uint32_t last_press_time_red = 0;
+    static uint32_t last_press_time_up = 0;
+    static uint32_t last_press_time_down = 0;
+    uint32_t current_time = HAL_GetTick();
+#ifdef STM32F401
     if (GPIO_Pin == GPIO_PIN_8)
     {
         // Pi Pico requested data.
@@ -175,6 +203,37 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
             }
         }
     }
+#endif
+
+    //Handle menu buttons.
+    //reading the docs i have set nvic to irq for all my button lines 0-4 so inside here we can call the functions for each button.
+    //also added a debounce variable.
+    if(GPIO_Pin == BTN_BLUE_Pin){
+        if ((current_time - last_press_time_blue) > 200) { 
+            ui.nav_next(&ui);
+            last_press_time_blue = current_time;
+        }
+    }
+    if(GPIO_Pin == BTN_RED_Pin){
+        if ((current_time - last_press_time_red) > 200) {
+            ui.nav_prev(&ui);
+            last_press_time_red = current_time;
+        }
+    }
+    if(GPIO_Pin == BTN_UP_Pin){
+        if ((current_time - last_press_time_up) > 200) { 
+            //ui.nav_next(&ui);
+            ui.val_up(&ui);
+            last_press_time_up = current_time;
+        }
+    }
+    if(GPIO_Pin == BTN_DOWN_Pin){
+        if ((current_time - last_press_time_down) > 200) {
+            ui.val_down(&ui);
+            last_press_time_down = current_time;
+        }
+    }
+
 }
 
 // Send short command to the LCD (Polling transfer)

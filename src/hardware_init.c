@@ -63,13 +63,26 @@ void my_hardware_init(void) {
     HAL_NVIC_EnableIRQ(DMA2_Stream3_IRQn);        //Activate interupts in the mcu
 
 
-    //BUTTONS (Inputs with Internal Pull-Up resistors)
+    //BUTTONS
     GPIO_InitStruct.Pin   = BTN_RED_Pin | BTN_BLUE_Pin | BTN_DOWN_Pin | BTN_UP_Pin;
-    GPIO_InitStruct.Mode  = GPIO_MODE_INPUT;
+    GPIO_InitStruct.Mode  = GPIO_MODE_IT_RISING;//GPIO_MODE_INPUT;//GPIO_MODE_IT_RISING;
     GPIO_InitStruct.Pull  = GPIO_PULLUP;   
     GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
     HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
-
+    //Trying to learn how this works reading som docs. I want to set interupt for my buttons.
+    //there are interupt lines. line 0-4 haw seperate interupt functions. line 5-9 share one and 10-15 share one.
+    //if i understand the doc correct we can only tie 1 gpio pin to each line. soo pa1 and pb1 can not use irq at the same time. the lines are tied together for each port so not allowed to use same line from multiple prots.
+    //it will trigger the same interupt function and if that documentatin is correct we can not see whitch pin.
+    //I will activate the EXTI for each button they are on pa0-4
+    HAL_NVIC_SetPriority(EXTI0_IRQn, 4,0);
+    HAL_NVIC_EnableIRQ(EXTI0_IRQn);
+    HAL_NVIC_SetPriority(EXTI1_IRQn, 4,0);
+    HAL_NVIC_EnableIRQ(EXTI1_IRQn);
+    HAL_NVIC_SetPriority(EXTI2_IRQn, 4,0);
+    HAL_NVIC_EnableIRQ(EXTI2_IRQn);
+    HAL_NVIC_SetPriority(EXTI3_IRQn, 4,0);
+    HAL_NVIC_EnableIRQ(EXTI3_IRQn);
+    //this should hawe enabled irq for all of my 4 buttons.
     //LED
     __HAL_RCC_GPIOC_CLK_ENABLE();
     //HAL_GPIO_WritePin(LED1_GPIO_port, LED1_Pin, GPIO_PIN_SET);
