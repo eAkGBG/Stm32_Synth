@@ -11,9 +11,11 @@
 
 #define UI_ROWS 11 //25pixel rows we can fit 11 of those on the display 280pixel display. 
 #define UI_BUFFER 24 //After testing. 24 is the limit of chars that fit in 1 row of the 240pixel screen width with the current font.
-#define PADDING_LEFT 10 //Add some padding 10pixels about one char.
-#define PADDING_TOP 25 //my display has rounded corners. lets simply start the menu 1 line down so we acually only can diplay 9 ui rows.
-#define ROW_SIZE 25 //set the height of each row 25 is good for 20 size text
+#define LABEL_PADDING_LEFT 15 //Add some padding 10pixels about one char.
+#define LABEL_PADDING_TOP 25 //my display has rounded corners. lets simply start the menu 1 line down so we acually only can diplay 9 ui rows.
+#define LABEL_ROW_SIZE 25 //set the height of each row 25 is good for 20 size text
+#define TEXT_PADDING_LEFT 10 //add some padding for text inside labels
+#define TEXT_PADDING_RIGHT 25
 typedef struct synth_ui_item_t{
     //Here we create the menu item data type.
     //What does it need? it needs Label. And a value. how does it connect to the value?
