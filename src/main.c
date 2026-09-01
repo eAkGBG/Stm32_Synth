@@ -22,6 +22,7 @@ lv_display_t *my_display; // Global display handle
 //for EXTI interupts we have to define these global.
 synth_ui_t ui = {0};
 synth_data_t synth = {0};
+volatile bool system_initialized = false;
 
 
 //some globals for the audio
@@ -71,14 +72,14 @@ int main(void){
     synth_data_init(&synth);
     //Ok here is the new ui struct.
     synth_ui_init(&ui, &synth);
-
+    system_initialized = true;
     //Test the ui function pointer.
-        ui.set_value(&ui, (int32_t)10);
+        //ui.set_value(&ui, (int32_t)10);
     //test menu update.
-        ui.active_menu_item = 1;
-        ui.set_value(&ui, (int32_t)10);
-        ui.update_menu(&ui);
-        ui.nav_next(&ui);
+        //ui.active_menu_item = 1;
+        //ui.set_value(&ui, (int32_t)10);
+        //ui.update_menu(&ui);
+        //ui.nav_next(&ui);
         //it works. selection changes. and values print
 
     //Ui is now creating a struct with the menu and items hooked to the synth struct.
@@ -170,11 +171,16 @@ void HAL_SPI_TxCpltCallback(SPI_HandleTypeDef *hspi) {
 }
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 {
+    if (!system_initialized) {
+        return; 
+    }
+    
     static uint32_t last_press_time_blue = 0;
     static uint32_t last_press_time_red = 0;
     static uint32_t last_press_time_up = 0;
     static uint32_t last_press_time_down = 0;
     uint32_t current_time = HAL_GetTick();
+
 #ifdef STM32F401
     if (GPIO_Pin == GPIO_PIN_8)
     {
@@ -187,11 +193,15 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
             //hspi2.State = HAL_SPI_STATE_READY;
             //__HAL_SPI_CLEAR_OVRFLAG(&hspi2); //After testing seems we do not need the reset.
 
-        audio_buffer_fill();
+        //audio_buffer_fill();
+
+        //Time to test the synth ADSR
+        synth.osc1_generator(&synth); //the generator will automatically apply the adsr
         
         //transmitt DMA 256 16-bit R,L,R,L and so on (128 stereo-samples)
         //Catch status from the DMA TX to check for errors.
-        HAL_StatusTypeDef status = HAL_SPI_Transmit_DMA(&hspi2, (uint8_t*)s_buf, (BUF_SAMPLES * 2));
+        //HAL_StatusTypeDef status = HAL_SPI_Transmit_DMA(&hspi2, (uint8_t*)s_buf, (BUF_SAMPLES * 2));
+        HAL_StatusTypeDef status = HAL_SPI_Transmit_DMA(&hspi2, (uint8_t*)synth.buffer, (BUFFER_SIZE * 2));
         
         //lets make the led blink!
         if (status == HAL_OK) {
