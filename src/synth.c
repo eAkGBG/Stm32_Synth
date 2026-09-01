@@ -30,9 +30,9 @@ int32_t synth_get_release(synth_data_t *synth){
 }
 
 void synth_data_init(synth_data_t *synth){
-    synth->attack = 5;
-    synth->decay = 15;
-    synth->sustain = 20;
+    synth->attack = 100;
+    synth->decay = 0;
+    synth->sustain = 200;
     synth->release = 10;
     synth->master_amp = MASTER_AMP;
     synth->note = 440; //init with A
@@ -56,18 +56,21 @@ void synth_data_init(synth_data_t *synth){
     synth->osc1_adsr = synth_osc1_adsr;
     synth->osc1_generator = synth_osc1_generator;
 
+    synth->set_master_amp = synth_master_volume;
+
 }
 
 //We need to create an ADSR function i think what is needed ? calculate a step value to scale the current sample amplitude. and hook that to the oscilator function.
 //but instead of using the note hz value it needs to scale over time. there are probably many tutorials on this on the internet.
 void synth_osc1_adsr(synth_data_t *synth){
-    //ToDo fix the bugs. ceck for division by 0 errors, ceck for typos, fix type conversions. and more.
+    //ToDo fix the bugs. ceck for division by 0 errors, ceck for typos, fix type conversions. and more. check the if statements so that they acually are only running when the ticks are correct.
     uint16_t lr_inc = 0;
-    float_t atk_amp = 0;
-    float_t dec_amp = 0;
-    float_t rel_amp = 0;
+    float_t atk_amp = 0.000001;
+    float_t dec_amp = 0.000001;
+    float_t rel_amp = 0.000001;
+    int16_t temp_amp; //used as a temporary variaqble for converting between types for calculations.
     //sustain this value is only a amp value. figure out how to create this value it's a scale so 1/ ((65536/256) * sustain) ?
-    float_t sus_amp = 1/((65536/256)*(synth->sustain));
+    float_t sus_amp = ((float_t)synth->sustain)/256.0f;
 
     uint32_t atk_time_steps = ((48000/1000)*((synth->attack) * 10));    //I need to calculate the steps needed to reach the attack * 10 (i decided we go in 10ms steps)
     uint32_t atk_step_size = 65536 / atk_time_steps;                    //I need to calculate the step size.
@@ -76,47 +79,82 @@ void synth_osc1_adsr(synth_data_t *synth){
     uint32_t dec_time_steps = ((48000/1000)*((synth->decay) * 10));
     uint32_t dec_step_size = 65536 / dec_time_steps;
     
-    
-    //do the attack scaling value.
+    //do some logic if note on(we are later going to send a note on true/false into the synth stryct now it's allways on.)
+    synth->note_on = true;
     if(synth->ticks < atk_time_steps){
+        synth->af = false;
+    }
+    if(synth->ticks < atk_time_steps + dec_time_steps){
+        synth->df = false;
+    }
+    //do the attack scaling value.
+    if(!synth->af){
         lr_inc = 0;
-        synth->acc_atk_time += atk_step_size;
-        atk_amp = 65536/(synth->acc_atk_time); //devide 65536 by the accumulator to get the scalar value.
         for(int i = 0; i < BUFFER_SIZE; i++){
-            uint16_t temp_amp = ((uint16_t)synth->buffer[lr_inc]) * atk_amp;
-            synth->buffer[lr_inc++] = temp_amp;
-            synth->buffer[lr_inc++] = temp_amp;
+            atk_amp = (float_t)synth->acc_atk_time/65535.0f; //devide 65536 by the accumulator to get the scalar value.
+            temp_amp = (int16_t)(synth->buffer[lr_inc]  - 32768);// - 32768;
+            temp_amp = temp_amp * atk_amp;
+            (synth->buffer[lr_inc++]) = (uint16_t)(temp_amp);
+            (synth->buffer[lr_inc++]) = (uint16_t)(temp_amp);
+            synth->acc_atk_time += atk_step_size;
             (synth->ticks)++; //Remember we need to put pointers inside () or else C does stupid stuff with adresses
+        }
+        if(synth->ticks >= atk_time_steps){
+            synth->af = true;
+            //synth->ticks = 0;
         }
 
     }
     //do the decay scaling value.
-    if(synth->ticks > atk_time_steps && synth->ticks < (atk_time_steps + dec_time_steps)){
-        synth->acc_dec_time += dec_step_size;
+    if(synth->af && !synth->df){
         lr_inc = 0;
-        dec_amp = 65536/(synth->acc_dec_time); //devide 65536 by the accumulator to get the scalar value.
         for(int i = 0; i < BUFFER_SIZE; i++){
-            uint16_t temp_amp = ((uint16_t)synth->buffer[lr_inc]) * dec_amp;
-            synth->buffer[lr_inc++] = temp_amp;
-            synth->buffer[lr_inc++] = temp_amp;
+            dec_amp = (float_t)(synth->acc_dec_time)/65535.0f; //devide 65536 by the accumulator to get the scalar value.
+            temp_amp = (int16_t)(synth->buffer[lr_inc] - 32768);
+            temp_amp = temp_amp * dec_amp;
+            (synth->buffer[lr_inc++]) = ((uint16_t)temp_amp);
+            (synth->buffer[lr_inc++]) = ((uint16_t)temp_amp);
+            synth->acc_dec_time += dec_step_size;
             (synth->ticks)++; //Remember we need to put pointers inside () or else C does stupid stuff with adresses
         }
+        if(synth->ticks >= dec_time_steps + atk_time_steps){
+            synth->df = true;
+            //synth->ticks = 0;
+        }
 
     }
-    //lets test sustain and reset tics.
-    if (synth->ticks > (atk_time_steps + dec_time_steps))
+     //lets test sustain and reset tics.
+    if (synth->af && synth->df)
     {
         lr_inc = 0;
+        
         for(int i = 0; i < BUFFER_SIZE; i++){
-            synth->buffer[lr_inc++] *= sus_amp;
-            synth->buffer[lr_inc++] *= sus_amp;
+            temp_amp = (float_t)(synth->buffer[lr_inc] - 32768);
+            temp_amp = temp_amp * sus_amp;
+            uint16_t converted_sample = (uint16_t)temp_amp;
+            (synth->buffer[lr_inc++]) = converted_sample;
+            (synth->buffer[lr_inc++]) = converted_sample;
         }
     }
-    
-    
-
-    
+}    
+void synth_master_volume(synth_data_t *synth){
+    int16_t temp_amp = 0;
+    int16_t lr_inc = 0;
+    uint16_t converted_sample = 0;
+    for(int i = 0; i < BUFFER_SIZE; i++){
+            //Left Channel
+            temp_amp = (float_t)(synth->buffer[lr_inc]);
+            temp_amp = temp_amp * (synth->master_amp);
+            converted_sample = (uint16_t)temp_amp;
+            (synth->buffer[lr_inc++]) = converted_sample;
+            //Right channel
+            temp_amp = (float_t)(synth->buffer[lr_inc]);
+            temp_amp = temp_amp * (synth->master_amp);
+            converted_sample = (uint16_t)temp_amp;
+            (synth->buffer[lr_inc++]) = converted_sample;
+        }
 }
+
 //this function fills the buffer with oscilator waveform
 void synth_osc1_generator(synth_data_t *synth){
     uint16_t lr_inc = 0;
@@ -127,7 +165,7 @@ void synth_osc1_generator(synth_data_t *synth){
         synth->phase += synth->step;    
     }
     synth->osc1_adsr(synth);
-    //synth->osc1_master(synth); //this function comes last.
+    synth->set_master_amp(synth); //this function comes last.
 }
 
 //ToDo add a master volume function.

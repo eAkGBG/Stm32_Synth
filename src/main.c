@@ -174,7 +174,7 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
     if (!system_initialized) {
         return; 
     }
-    
+
     static uint32_t last_press_time_blue = 0;
     static uint32_t last_press_time_red = 0;
     static uint32_t last_press_time_up = 0;
@@ -283,7 +283,7 @@ void my_lcd_send_color(lv_display_t *disp, const uint8_t *cmd, size_t cmd_size, 
 
 
 //Test function it generates a saw The math is correct.
-void audio_buffer_fill(void)
+/* void audio_buffer_fill(void)
 {
     //c5 523.25
     //d5 587.33
@@ -308,7 +308,7 @@ void audio_buffer_fill(void)
         s_buf[sample_index ++] = convert_sample;
         phase += step;
     }
-} 
+}  */
 
 
 

@@ -24,6 +24,11 @@ typedef struct synth_data_t {
     uint32_t acc_dec_time;
     uint32_t acc_rel_time;
 
+    //keep the status if we finished the ADSR parts.
+    bool af; 
+    bool df;
+    bool rf;
+
     volatile uint16_t phase; //this is used to generate the Wave form
     uint32_t step; //this is used to calculate the valu change for each sample from the phase
     uint32_t ticks; //keeps track of time wonder how manny i need this is how big the number is. 4 294 967 295/48000 = 89 478 seconds. that is more then enough..
@@ -45,10 +50,11 @@ typedef struct synth_data_t {
     int32_t (*get_release)(struct synth_data_t *synth);
     void (*osc1_adsr)(struct synth_data_t *synth);
     void (*osc1_generator)(struct synth_data_t *synth);
+    void (*set_master_amp)(struct synth_data_t *synth);
 } synth_data_t;
 //to start i think perhaps we go with 10ms steps for the adsr.
 void synth_osc1_adsr(synth_data_t *synth);
 void synth_osc1_generator(synth_data_t *synth);
 void synth_data_init(synth_data_t *synth);
-
+void synth_master_volume(synth_data_t *synth);
 #endif
