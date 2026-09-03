@@ -20,18 +20,19 @@ Goal of the project.
 
     Keyboard
         i'm considering buying a multizone tof sensor for this. hold your hand in the air and it will play notes. also i can simply use a 1 beam tof sensor then note is simply the hight above the sensor. This is not decided yet.
+        Now usin VL53L0x sensor with i2c
 
 ToDo:
     The hardware init code is running. Clean it up move functions to apropriated C files to clean main up, alredy started this.
     
     Buld a struct that holds the synth data.
-        Connect the synth struct inside the buffer fill interrupt.
-        Make it keep track of time in some way. we use 128 sampels buffer length and 48khz
-        So we can probably use this in some way for keeping time.
+        #Complete Connect the synth struct inside the buffer fill interrupt.
+        #Complete Make it keep track of time in some way. we use 128 sampels buffer length and 48khz 
+            So we can probably use this in some way for keeping time.
 
-    Build a simple ADSR function and a wave lookup table to send out on the DAC
+    #PartsComplete Build a simple ADSR function and a wave lookup table to send out on the DAC
 
-    Buld the menu. Start with only ADSR settings
+    #Complete Buld the menu. Start with only ADSR settings
         Started with it. it now stores data nicely in 2 structs hooked to the synth struct,
         can change values inside the synth when functions added.
             I tried function pointers inside structs. Will use this.
