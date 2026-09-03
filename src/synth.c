@@ -158,7 +158,13 @@ void synth_master_volume(synth_data_t *synth){
 //this function fills the buffer with oscilator waveform
 void synth_osc1_generator(synth_data_t *synth){
     uint16_t lr_inc = 0;
-
+    uint16_t tof_note = 220;
+    if(synth->tof_distance < 1000){
+        tof_note = synth->tof_distance;
+    }else{
+        tof_note = 120;
+    }
+    synth->step = 65536*(tof_note)/SAMPLE_RATE;
     for(int i = 0; i < BUFFER_SIZE; i++){
         synth->buffer[lr_inc++] = synth->phase;
         synth->buffer[lr_inc++] = synth->phase;

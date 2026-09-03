@@ -1,0 +1,41 @@
+ vl53l0x_init();
+    HAL_Delay(100);
+    Dev->I2cDevAddr = 0x52;              /* (0x29 << 1), same as before */
+    tof_dwt_init();
+
+    VL53L0X_Error e = VL53L0X_DataInit(Dev);            /* load default params (no I2C) */
+    if (e) { while(1); }
+
+    e = VL53L0X_StaticInit(Dev);                        /* power-on, boot wait, PLL gate,
+                                                        soft reset, read NVM data */
+    if (e) { while(1); }
+
+    uint8_t  VhvSettings, PhaseCal;
+    uint32_t refSpadCount;
+    uint8_t  isApertureSpads;
+
+    e = VL53L0X_PerformRefCalibration(Dev, &VhvSettings, &PhaseCal);
+    if (e) { while(1); }
+
+    e = VL53L0X_PerformRefSpadManagement(Dev, &refSpadCount, &isApertureSpads);
+    if (e) { while(1); }
+
+    e = VL53L0X_SetDeviceMode(Dev, VL53L0X_DEVICEMODE_CONTINUOUS_RANGING);
+    if (e) { while(1); }
+
+    e = VL53L0X_StartMeasurement(Dev);
+    if (e) { while(1); }
+
+    for (;;) {
+        uint8_t ready = 0;
+        if (VL53L0X_GetMeasurementDataReady(Dev, &ready) == VL53L0X_ERROR_NONE && ready) {
+            VL53L0X_RangingMeasurementData_t r;
+            if (VL53L0X_GetRangingMeasurementData(Dev, &r) == VL53L0X_ERROR_NONE) {
+                if (r.RangeStatus == 0) {
+                    uint16_t mm = r.RangeMilliMeter;   /* valid sample — do something */
+                }
+            }
+            VL53L0X_ClearInterruptMask(Dev, VL53L0X_REG_SYSTEM_INTERRUPT_GPIO_NEW_SAMPLE_READY);
+        }
+        HAL_Delay(10);
+    }  

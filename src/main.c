@@ -6,9 +6,16 @@
 #include "ui.h"
 #include "hardware_init.h"
 #include "synth.h"
+#include "vl53l0x_api.h"
 
 DMA_HandleTypeDef hdma_spi1_tx; // Global handle för din SPI1 DMA
-SPI_HandleTypeDef hspi1;
+SPI_HandleTypeDef hspi1; //global handle for spi1
+I2C_HandleTypeDef hi2c1; //Global handle for i2c1
+DMA_HandleTypeDef hdma_i2c1_rx;
+
+VL53L0X_Dev_t MyDevice;
+VL53L0X_DEV Dev = &MyDevice; // Pointer that the st lib uses for the sensor.
+
 #ifdef STM32F401
     SPI_HandleTypeDef hspi2;
     DMA_HandleTypeDef hdma_spi2_tx;
@@ -25,21 +32,18 @@ synth_data_t synth = {0};
 volatile bool system_initialized = false;
 
 
-//some globals for the audio
-//Will probably move this stuff over to the synth.c/h
-#define AUDIO_FS     48000
-#define BUF_SAMPLES 128 //DO not change this. Because it's kinda hardcoded inside the Dac driver now.
-#define AMP         0.01 //Close to electric guitar level on my saw function
 uint32_t transfer_count = 0;
 uint16_t phase = 0;
 
-volatile uint16_t s_buf[BUF_SAMPLES*2];
+//buffer for dma i2c1
+volatile uint16_t tof_distance = 220;
 
+void tof_dwt_init(void);
 void my_lcd_send_cmd(lv_display_t *disp, const uint8_t *cmd, size_t cmd_size, const uint8_t *param, size_t param_size);
 void my_lcd_send_color(lv_display_t *disp, const uint8_t *cmd, size_t cmd_size, uint8_t *param, size_t param_size);
+void start_vl53l0x_background_mode(void);
 
-void audio_buffer_fill(void);
-void DMA1_Stream4_IRQHandler(void);
+
 
 int main(void){
     //init MCU
@@ -53,12 +57,16 @@ int main(void){
     
     //init the dac
     audio_init();
-    //audio_buffer_fill();
+    start_vl53l0x_background_mode();
+    HAL_Delay(50);
+                                  
  
+
+
 #ifdef STM32F411
     HAL_I2S_Transmit_DMA(&hi2s2, (uint16_t*)sine_buf, 512);  // runs forever via circular DMA
 #endif
-
+    HAL_Delay(50);
 
     lv_init();
     lv_tick_set_cb(HAL_GetTick);
@@ -72,6 +80,8 @@ int main(void){
     synth_data_init(&synth);
     //Ok here is the new ui struct.
     synth_ui_init(&ui, &synth);
+
+
     system_initialized = true;
     //Test the ui function pointer.
         //ui.set_value(&ui, (int32_t)10);
@@ -91,12 +101,28 @@ int main(void){
     
     //this forces interupt to check if the code is activated.
     //EXTI->SWIER |= GPIO_PIN_8;
+    
+    while (1){
+        uint8_t ready = 0;
 
-    while (1)
-    {
+        //check if there is a measurement.
+        if (VL53L0X_GetMeasurementDataReady(Dev, &ready) == VL53L0X_ERROR_NONE && ready) {
+            VL53L0X_RangingMeasurementData_t r;
+
+            if (VL53L0X_GetRangingMeasurementData(Dev, &r) == VL53L0X_ERROR_NONE) {
+                if (r.RangeStatus == 0) {
+                    //Update the global
+                    tof_distance = r.RangeMilliMeter; 
+                }
+            }
+            //Tell the sensor to do next measurement.
+            VL53L0X_ClearInterruptMask(Dev, VL53L0X_REG_SYSTEM_INTERRUPT_GPIO_NEW_SAMPLE_READY);
+        }
         lv_timer_handler();
-        HAL_Delay(100);/* code */
+        
         ui.update_menu(&ui);
+
+        HAL_Delay(50);
     }
     
 
@@ -137,6 +163,21 @@ void DMA2_Stream3_IRQHandler(void) {
     HAL_DMA_IRQHandler(&hdma_spi1_tx);
 }
 
+void I2C1_EV_IRQHandler(void) {
+    HAL_I2C_EV_IRQHandler(&hi2c1);
+}
+
+void I2C1_ER_IRQHandler(void) {
+    HAL_I2C_ER_IRQHandler(&hi2c1);
+}
+
+void DMA1_Stream0_IRQHandler(void) {
+    HAL_DMA_IRQHandler(hi2c1.hdmarx);
+}
+
+
+
+
 void DMA1_Stream4_IRQHandler(void)
 {
     #ifdef STM32F411
@@ -166,6 +207,7 @@ void HAL_SPI_TxCpltCallback(SPI_HandleTypeDef *hspi) {
             HAL_GPIO_TogglePin(LED1_GPIO_port, LED1_Pin);
             transfer_count = 0;
         } */
+       
     }
     #endif
 }
@@ -193,14 +235,24 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
             //hspi2.State = HAL_SPI_STATE_READY;
             //__HAL_SPI_CLEAR_OVRFLAG(&hspi2); //After testing seems we do not need the reset.
 
-        //audio_buffer_fill();
 
+        //do DMA pulling se if we have a new note value from the TOF sensor.
+        /* if(__HAL_DMA_GET_FLAG(&hdma_i2c1_rx, DMA_FLAG_TCIF0_4)){
+            //Clear the dma flag manually.
+            __HAL_DMA_CLEAR_FLAG(&hdma_i2c1_rx, DMA_FLAG_TCIF0_4); //This flag TCIF0_4 is the hal macro to read the transfer compleate on stream 0
+
+            //this is how to get the data. bit shift the 8 byte packets into one 16bit variable.
+            uint16_t distance = (tof_data_buffer[0] << 8) | tof_data_buffer[1];
+            synth.tof_distance = distance;
+
+            HAL_I2C_Mem_Read_DMA(&hi2c1, (0x29 << 1), 0x1E, I2C_MEMADD_SIZE_8BIT, tof_data_buffer, 2);
+        } */
         //Time to test the synth ADSR
+        synth.tof_distance = tof_distance;
         synth.osc1_generator(&synth); //the generator will automatically apply the adsr
         
         //transmitt DMA 256 16-bit R,L,R,L and so on (128 stereo-samples)
         //Catch status from the DMA TX to check for errors.
-        //HAL_StatusTypeDef status = HAL_SPI_Transmit_DMA(&hspi2, (uint8_t*)s_buf, (BUF_SAMPLES * 2));
         HAL_StatusTypeDef status = HAL_SPI_Transmit_DMA(&hspi2, (uint8_t*)synth.buffer, (BUFFER_SIZE * 2));
         
         //lets make the led blink!
@@ -282,6 +334,39 @@ void my_lcd_send_color(lv_display_t *disp, const uint8_t *cmd, size_t cmd_size, 
 }
 
 
+
+void start_vl53l0x_background_mode(void) {
+    // start the hardware in cyceling mode.
+    vl53l0x_init();
+    HAL_Delay(10);
+    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_6, GPIO_PIN_SET); 
+    HAL_Delay(10);
+    
+    Dev->I2cDevAddr = (0x29 << 1);//0x52;
+    tof_dwt_init();
+
+    //read standard params
+    if (VL53L0X_DataInit(Dev) != VL53L0X_ERROR_NONE) { while(1); }
+
+    // basic callibration at startup.
+    if (VL53L0X_StaticInit(Dev) != VL53L0X_ERROR_NONE) { while(1); }
+
+    uint8_t VhvSettings, PhaseCal;
+    if (VL53L0X_PerformRefCalibration(Dev, &VhvSettings, &PhaseCal) != VL53L0X_ERROR_NONE) { while(1); }
+
+    uint32_t refSpadCount;
+    uint8_t isApertureSpads;
+    if (VL53L0X_PerformRefSpadManagement(Dev, &refSpadCount, &isApertureSpads) != VL53L0X_ERROR_NONE) { while(1); }
+
+    // set it in cycling mode.
+    if (VL53L0X_SetDeviceMode(Dev, VL53L0X_DEVICEMODE_CONTINUOUS_RANGING) != VL53L0X_ERROR_NONE) { while(1); }
+
+    // its now cycling by itself.
+    if (VL53L0X_StartMeasurement(Dev) != VL53L0X_ERROR_NONE) { while(1); }
+}
+
+
+
 //Test function it generates a saw The math is correct.
 /* void audio_buffer_fill(void)
 {
@@ -309,6 +394,5 @@ void my_lcd_send_color(lv_display_t *disp, const uint8_t *cmd, size_t cmd_size, 
         phase += step;
     }
 }  */
-
 
 

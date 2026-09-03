@@ -187,10 +187,11 @@ void audio_init(void)
     hdma_spi2_tx.Init.MemDataAlignment    = DMA_MDATAALIGN_HALFWORD;
     hdma_spi2_tx.Init.Mode                = DMA_NORMAL;
     hdma_spi2_tx.Init.Priority            = DMA_PRIORITY_LOW;
-    hdma_spi2_tx.Init.FIFOMode            = DMA_FIFOMODE_DISABLE;
-    HAL_DMA_Init(&hdma_spi2_tx);
-    __HAL_LINKDMA(&hspi2, hdmatx, hdma_spi2_tx);
+    hdma_spi2_tx.Init.FIFOMode            = DMA_FIFOMODE_ENABLE;
+    hdma_spi2_tx.Init.FIFOThreshold         = DMA_FIFO_THRESHOLD_HALFFULL;
+    hdma_spi2_tx.Init.MemBurst              = DMA_MBURST_SINGLE;
 
+    HAL_DMA_Init(&hdma_spi2_tx);
     //som setup probably learn this some day. now main task code ui and synth when the hardware is running.
     hspi2.Instance = SPI2;
     hspi2.Init.Mode = SPI_MODE_MASTER;
@@ -208,11 +209,13 @@ void audio_init(void)
     hspi2.Init.TIMode = SPI_TIMODE_DISABLE;
     hspi2.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
     hspi2.Init.CRCPolynomial = 10;
+
+    __HAL_LINKDMA(&hspi2, hdmatx, hdma_spi2_tx);
     
     HAL_SPI_Init(&hspi2);
     hspi2.Instance->CR1 |= SPI_CR1_SSI; 
 
-    HAL_NVIC_SetPriority(DMA1_Stream4_IRQn, 0, 0);
+    HAL_NVIC_SetPriority(DMA1_Stream4_IRQn, 5, 0);
     HAL_NVIC_EnableIRQ(DMA1_Stream4_IRQn);
 }
 #endif
@@ -220,7 +223,7 @@ void audio_init(void)
 
 
 //ned to try to learn this clocks setup some day.
-void SystemClock_Config(void)
+/* void SystemClock_Config(void)
 {
     RCC_OscInitTypeDef RCC_OscInitStruct = {0};
     RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
@@ -255,4 +258,120 @@ void SystemClock_Config(void)
     PeriphClkInit.PLLI2S.PLLI2SN = 192; //PeriphClkInit.PLLI2S.PLLI2SN = 88; 
     PeriphClkInit.PLLI2S.PLLI2SR = 2; //PeriphClkInit.PLLI2S.PLLI2SR = 4;
     HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit);
+} */
+
+void SystemClock_Config(void)
+{
+    RCC_OscInitTypeDef RCC_OscInitStruct = {0};
+    RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
+
+    __HAL_RCC_PWR_CLK_ENABLE();
+    __HAL_PWR_VOLTAGESCALING_CONFIG(PWR_REGULATOR_VOLTAGE_SCALE2);
+
+    // HSI 16 MHz -> PLL: /8 -> x84 -> /2 -> 84 MHz SYSCLK
+    RCC_OscInitStruct.OscillatorType      = RCC_OSCILLATORTYPE_HSI;
+    RCC_OscInitStruct.HSIState            = RCC_HSI_ON;
+    RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
+    RCC_OscInitStruct.PLL.PLLState        = RCC_PLL_ON;
+    RCC_OscInitStruct.PLL.PLLSource       = RCC_PLLSOURCE_HSI;
+    RCC_OscInitStruct.PLL.PLLM = 8;
+    RCC_OscInitStruct.PLL.PLLN = 84;
+    RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV2;
+    RCC_OscInitStruct.PLL.PLLQ = 4;
+    HAL_RCC_OscConfig(&RCC_OscInitStruct);
+
+    RCC_ClkInitStruct.ClockType      = RCC_CLOCKTYPE_SYSCLK | RCC_CLOCKTYPE_HCLK |
+                                       RCC_CLOCKTYPE_PCLK1  | RCC_CLOCKTYPE_PCLK2;
+    RCC_ClkInitStruct.SYSCLKSource   = RCC_SYSCLKSOURCE_PLLCLK;
+    RCC_ClkInitStruct.AHBCLKDivider  = RCC_SYSCLK_DIV1;
+    RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV2;   // 42 MHz
+    RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV2;   // 84 MHz
+    HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_2);
+}
+
+
+
+void vl53l0x_init(void){
+
+    __HAL_RCC_GPIOB_CLK_ENABLE();
+    __HAL_RCC_DMA1_CLK_ENABLE();
+    
+    __HAL_RCC_I2C1_FORCE_RESET();
+    HAL_Delay(5);
+    __HAL_RCC_I2C1_RELEASE_RESET();
+
+    __HAL_RCC_I2C1_CLK_ENABLE();
+    HAL_Delay(5);
+
+    //set the pinns To do mowe the pin numbers as defines in main.h
+    GPIO_InitTypeDef GPIO_InitStruct = {0};
+
+    GPIO_InitStruct.Pin = GPIO_PIN_8 | GPIO_PIN_9;
+    GPIO_InitStruct.Mode = GPIO_MODE_AF_OD; //open drain for i2c
+    GPIO_InitStruct.Pull = GPIO_PULLUP;
+    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
+    GPIO_InitStruct.Alternate = GPIO_AF4_I2C1; //AF4 Pin mapping som day i will know what this is.
+    HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+
+    //XSHUT for VL53L0X (PB6)
+    GPIO_InitStruct.Pin = GPIO_PIN_6;
+    GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+    GPIO_InitStruct.Pull = GPIO_NOPULL;
+    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+    GPIO_InitStruct.Alternate = 0;
+    HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_6, GPIO_PIN_SET); // sensor powered
+
+    hi2c1.Instance = I2C1;
+    hi2c1.Init.ClockSpeed = 100000; //100khz
+    hi2c1.Init.DutyCycle = I2C_DUTYCYCLE_2;
+    hi2c1.Init.OwnAddress1 = 0;
+    hi2c1.Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
+    hi2c1.Init.DualAddressMode = I2C_DUALADDRESS_DISABLE;
+    hi2c1.Init.OwnAddress2 = 0;
+    hi2c1.Init.GeneralCallMode = I2C_GENERALCALL_DISABLE;
+    hi2c1.Init.NoStretchMode = I2C_NOSTRETCH_DISABLE;
+    //HAL_I2C_Init(&hi2c1);
+    if(HAL_I2C_Init(&hi2c1) != HAL_OK) {
+        // here we can do debug break point.
+        while(1); 
+    }
+
+
+    // activate analog filter.
+    //HAL_I2CEx_ConfigAnalogFilter(&hi2c1, I2C_ANALOGFILTER_ENABLE);
+    
+    // activate digital filter
+    HAL_I2CEx_ConfigDigitalFilter(&hi2c1, 1);
+    // -------------------------------------------------------
+
+
+    hdma_i2c1_rx.Instance = DMA1_Stream0; //this stream for the i2c hardware.
+    hdma_i2c1_rx.Init.Channel = DMA_CHANNEL_1; //This channel for the i2c hardware.
+    hdma_i2c1_rx.Init.Direction = DMA_PERIPH_TO_MEMORY;
+    hdma_i2c1_rx.Init.PeriphInc = DMA_PINC_DISABLE;
+    hdma_i2c1_rx.Init.MemInc = DMA_MINC_ENABLE; //we read 2 buffers so we need auto increase the memory adress ?
+    hdma_i2c1_rx.Init.PeriphDataAlignment = DMA_PDATAALIGN_BYTE;
+    hdma_i2c1_rx.Init.MemDataAlignment = DMA_PDATAALIGN_BYTE;
+    hdma_i2c1_rx.Init.Mode = DMA_NORMAL;
+    hdma_i2c1_rx.Init.Priority = DMA_PRIORITY_VERY_HIGH;
+    hdma_i2c1_rx.Init.FIFOMode = DMA_FIFOMODE_DISABLE;
+    HAL_DMA_Init(&hdma_i2c1_rx);
+
+    //we need to link them up.
+    //__HAL_LINKDMA(&hi2c1, hdmarx, hdma_i2c1_rx);
+
+    //Set the nvic prio and enable interupt.
+    //eh we skip this go for dma polling..
+    HAL_NVIC_SetPriority(DMA1_Stream0_IRQn, 2, 0);
+    HAL_NVIC_EnableIRQ(DMA1_Stream0_IRQn);
+
+    //ok we need this enabled also ?
+    HAL_NVIC_SetPriority(I2C1_EV_IRQn, 3, 0); 
+    HAL_NVIC_EnableIRQ(I2C1_EV_IRQn);
+
+
+    HAL_NVIC_SetPriority(I2C1_ER_IRQn, 5, 0); 
+    HAL_NVIC_EnableIRQ(I2C1_ER_IRQn); 
+
 }
