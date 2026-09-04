@@ -35,6 +35,7 @@ typedef struct synth_data_t {
     uint16_t buffer[BUFFER_SIZE*2]; // for stereo need to alternate L/R values so buffer to sound device needs to be x2 BUFFER_SIZE
 
     uint16_t tof_distance; //here we store the current distance from the sensor to calculate note values.
+    uint8_t tof_status;
     bool note_on; //this one keeps track if the note is playing.
     uint16_t note; //keep the current note in memory. perhaps this needs to be an array for polyphony.. at least we want the release/decay of previous note to ring out.
     //berhaps sulution is to build an array of voices inside the synth struct. each time a new note is pressed it swaps to the next to let the old one ring out.
@@ -58,4 +59,5 @@ void synth_osc1_adsr(synth_data_t *synth);
 void synth_osc1_generator(synth_data_t *synth);
 void synth_data_init(synth_data_t *synth);
 void synth_master_volume(synth_data_t *synth);
+void synth_select_note(synth_data_t *synth);
 #endif

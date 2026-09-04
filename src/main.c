@@ -40,6 +40,7 @@ uint16_t phase = 0;
 
 //buffer for dma i2c1
 volatile uint16_t tof_distance = 220;
+volatile uint8_t tof_status = 0;
 
 void tof_dwt_init(void);
 void my_lcd_send_cmd(lv_display_t *disp, const uint8_t *cmd, size_t cmd_size, const uint8_t *param, size_t param_size);
@@ -119,7 +120,10 @@ int main(void){
                 if (VL53L0X_GetRangingMeasurementData(Dev, &r) == VL53L0X_ERROR_NONE) {
                     if (r.RangeStatus == 0) {
                         //Update the global
-                        tof_distance = r.RangeMilliMeter; 
+                        tof_distance = r.RangeMilliMeter;
+                        tof_status = r.RangeStatus; 
+                    }else{
+                        tof_status = 1; 
                     }
                 }
                 //Tell the sensor to do next measurement.
@@ -259,6 +263,7 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
         
         //Time to test the synth ADSR
         synth.tof_distance = tof_distance;
+        synth.tof_status = tof_status;
         synth.osc1_generator(&synth); //the generator will automatically apply the adsr
         
         //transmitt DMA 256 16-bit R,L,R,L and so on (128 stereo-samples)

@@ -1,6 +1,74 @@
 //Human code By Me
 #include "synth.h"
 
+//Lets write the note selection function.
+void synth_select_note(synth_data_t *synth){
+    /*
+    NOTE
+FREQUENCY (HZ)
+C2	
+65.41
+C#2 / Db2	
+69.30
+D2	
+73.42
+D#2 / Eb2	
+77.78
+E2	
+82.41
+F2	
+87.31
+F#2 / Gb2	
+92.50
+G2	
+98.00
+G#2 / Ab2	
+103.83
+A2	
+110.00
+A#2 / Bb2	
+116.54
+B2	
+123.47
+C3
+130,82
+*/
+    if( synth->tof_distance < 261 && synth->tof_status == 0){
+        synth->master_amp = 0.01f;
+        synth->note_on = true;
+        float_t current_note = (synth->tof_distance / 2) / 12;
+        if(current_note < 1){
+            synth->note = 65;
+        }else if(current_note < 2){
+            synth->note = 69;
+        }else if(current_note < 3){
+            synth->note = 73;
+        }else if(current_note < 4){
+            synth->note = 78;
+        }else if(current_note < 5){
+            synth->note = 82;
+        }else if(current_note < 6){
+            synth->note = 87;
+        }else if(current_note < 7){
+            synth->note = 93;
+        }else if(current_note < 8){
+            synth->note = 98;
+        }else if(current_note < 9){
+            synth->note = 104;
+        }else if(current_note < 10){
+            synth->note = 110;
+        }else if(current_note < 11){
+            synth->note = 117;
+        }else if(current_note < 12){
+            synth->note = 123;
+        }
+    } else {
+        synth->master_amp = 0.0001f;
+        synth->note_on = false;
+    }
+
+}
+
 //Helper functions to get and set ADSR
 void synth_set_attack(synth_data_t *synth, int32_t attack){
     synth->attack = attack;
@@ -107,6 +175,7 @@ void synth_osc1_adsr(synth_data_t *synth){
 
     }
     //do the decay scaling value.
+    //ToDo: we hawe to count in reverse here.!
     if(synth->af && !synth->df){
         lr_inc = 0;
         for(int i = 0; i < BUFFER_SIZE; i++){
@@ -125,7 +194,7 @@ void synth_osc1_adsr(synth_data_t *synth){
 
     }
      //lets test sustain and reset tics.
-    if (synth->af && synth->df)
+    if (synth->af && synth->df && synth->note_on)
     {
         lr_inc = 0;
         
@@ -159,13 +228,10 @@ void synth_master_volume(synth_data_t *synth){
 //this function fills the buffer with oscilator waveform
 void synth_osc1_generator(synth_data_t *synth){
     uint16_t lr_inc = 0;
-    uint16_t tof_note = 220;
-    if(synth->tof_distance < 1000){
-        tof_note = synth->tof_distance;
-    }else{
-        tof_note = 120;
-    }
-    synth->step = 65536*(tof_note)/SAMPLE_RATE;
+    
+    synth_select_note(synth);
+
+    synth->step = 65536*(synth->note)/SAMPLE_RATE;
     for(int i = 0; i < BUFFER_SIZE; i++){
         synth->buffer[lr_inc++] = synth->phase;
         synth->buffer[lr_inc++] = synth->phase;
