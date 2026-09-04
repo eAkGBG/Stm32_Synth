@@ -1,3 +1,4 @@
+//Human code By Me
 #include "synth.h"
 
 //Helper functions to get and set ADSR

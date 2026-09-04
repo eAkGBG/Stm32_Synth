@@ -1,4 +1,5 @@
 //file main.c
+//Contains some boilerplate generated to init the hardware.
 #include <stdlib.h>
 #include <math.h>
 #include "main.h"
@@ -33,6 +34,8 @@ volatile bool system_initialized = false;
 
 
 uint32_t transfer_count = 0;
+uint32_t vl53l0x_timing_counter = 0;
+#define VL53L0X_TIMING_VALUE 13 //default measurement time is 33ms? 128/48000*1000 = 2,66666667ms (0.0027s)  33/2,66666667 = 12.375 buffers
 uint16_t phase = 0;
 
 //buffer for dma i2c1
@@ -103,26 +106,32 @@ int main(void){
     //EXTI->SWIER |= GPIO_PIN_8;
     
     while (1){
-        uint8_t ready = 0;
+        //to spare unneccesarry pulling inside main loop Use calculated timing value. for vl53l0x sensor.
+        //there were issues with performance inside the interupt function move it back into main for now.
+        //vl53l0x_timing_counter++;
+        
+        //if(vl53l0x_timing_counter >= VL53L0X_TIMING_VALUE){
+            //check if there is a measurement.
+            uint8_t ready = 0;
+            if (VL53L0X_GetMeasurementDataReady(Dev, &ready) == VL53L0X_ERROR_NONE && ready) {
+                VL53L0X_RangingMeasurementData_t r;
 
-        //check if there is a measurement.
-        if (VL53L0X_GetMeasurementDataReady(Dev, &ready) == VL53L0X_ERROR_NONE && ready) {
-            VL53L0X_RangingMeasurementData_t r;
-
-            if (VL53L0X_GetRangingMeasurementData(Dev, &r) == VL53L0X_ERROR_NONE) {
-                if (r.RangeStatus == 0) {
-                    //Update the global
-                    tof_distance = r.RangeMilliMeter; 
+                if (VL53L0X_GetRangingMeasurementData(Dev, &r) == VL53L0X_ERROR_NONE) {
+                    if (r.RangeStatus == 0) {
+                        //Update the global
+                        tof_distance = r.RangeMilliMeter; 
+                    }
                 }
+                //Tell the sensor to do next measurement.
+                VL53L0X_ClearInterruptMask(Dev, VL53L0X_REG_SYSTEM_INTERRUPT_GPIO_NEW_SAMPLE_READY);
             }
-            //Tell the sensor to do next measurement.
-            VL53L0X_ClearInterruptMask(Dev, VL53L0X_REG_SYSTEM_INTERRUPT_GPIO_NEW_SAMPLE_READY);
-        }
+        //    vl53l0x_timing_counter = 0;
+        //}
         lv_timer_handler();
         
         ui.update_menu(&ui);
 
-        HAL_Delay(50);
+        HAL_Delay(25);
     }
     
 
@@ -247,6 +256,7 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 
             HAL_I2C_Mem_Read_DMA(&hi2c1, (0x29 << 1), 0x1E, I2C_MEMADD_SIZE_8BIT, tof_data_buffer, 2);
         } */
+        
         //Time to test the synth ADSR
         synth.tof_distance = tof_distance;
         synth.osc1_generator(&synth); //the generator will automatically apply the adsr

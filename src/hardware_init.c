@@ -1,3 +1,4 @@
+//Most of the init generated code.
 #include "hardware_init.h"
 #include "main.h"
 

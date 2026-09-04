@@ -1,4 +1,7 @@
+//Human code by Me
+
 #include "ui.h"
+
 
 //new synthui init. we vill connect it to the synth struct.
 void synth_ui_init(synth_ui_t *synth_ui, synth_data_t *synth){
