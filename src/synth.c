@@ -1,115 +1,19 @@
 //Human code By Me
 #include "synth.h"
 
-//Lets write the note selection function.
-void synth_select_note(synth_data_t *synth){
-    /*
-    NOTE
-FREQUENCY (HZ)
-C2	
-65.41
-C#2 / Db2	
-69.30
-D2	
-73.42
-D#2 / Eb2	
-77.78
-E2	
-82.41
-F2	
-87.31
-F#2 / Gb2	
-92.50
-G2	
-98.00
-G#2 / Ab2	
-103.83
-A2	
-110.00
-A#2 / Bb2	
-116.54
-B2	
-123.47
-C3
-130,82
-*/
-    if( synth->tof_distance < 523 && synth->tof_status == 0){
-        synth->master_amp = 0.02f;
-        synth->note_on = true;
-        //synth->adsr_finished = true; //debug hack here..
-        float_t current_note = (synth->tof_distance / 4) / 12;
-        if(current_note < 1){
-            synth->note = 65;
-        }else if(current_note < 2){
-            synth->note = 69;
-        }else if(current_note < 3){
-            synth->note = 73;
-        }else if(current_note < 4){
-            synth->note = 78;
-        }else if(current_note < 5){
-            synth->note = 82;
-        }else if(current_note < 6){
-            synth->note = 87;
-        }else if(current_note < 7){
-            synth->note = 93;
-        }else if(current_note < 8){
-            synth->note = 98;
-        }else if(current_note < 9){
-            synth->note = 104;
-        }else if(current_note < 10){
-            synth->note = 110;
-        }else if(current_note < 11){
-            synth->note = 117;
-        }else if(current_note < 12){
-            synth->note = 123;
-        }
-    } else {
-        synth->note_on = false;
-    }
-
-}
-
-//Helper functions to get and set ADSR
-void synth_set_attack(synth_data_t *synth, int32_t attack){
-    synth->attack = attack;
-}
-int32_t synth_get_attack(synth_data_t *synth){
-    return synth->attack;
-}
-
-void synth_set_decay(synth_data_t *synth, int32_t decay){
-    synth->decay = decay;
-}
-int32_t synth_get_decay(synth_data_t *synth){
-    return synth->decay;
-}
-
-void synth_set_sustain(synth_data_t *synth, int32_t sustain){
-    synth->sustain = sustain;
-}
-int32_t synth_get_sustain(synth_data_t *synth){
-    return synth->sustain;
-}
-
-void synth_set_release(synth_data_t *synth, int32_t release){
-    synth->release = release;
-}
-int32_t synth_get_release(synth_data_t *synth){
-    return synth->release;
-}
 
 void synth_data_init(synth_data_t *synth){
-    synth->attack = 1;
-    synth->decay = 30;
-    synth->sustain = 100;
-    synth->release = 90;
+    synth->attack = 10;
+    synth->decay = 1;
+    synth->sustain = 50;
+    synth->release = 80;
     synth->master_amp = MASTER_AMP;
     synth->note = 440; //init with A
     synth->phase = 0;
     synth->step = 65536*(synth->note)/SAMPLE_RATE; //Need to solve how to handle notes. A lookup table?
     synth->ticks = 0; //total time for our tics in 48khz will last for 89 478 seconds. enough to never run out of time steps.
     synth->note_on = false;
-    synth->adsr_finished = true;
+    synth->adsr_reset = true;
     synth->af = true;
     synth->df = true;
     synth->rf = true;
@@ -150,6 +54,113 @@ void synth_data_init(synth_data_t *synth){
 
 }
 
+//Lets write the note selection function.
+void synth_select_note(synth_data_t *synth){
+    /*
+    NOTE
+FREQUENCY (HZ)
+C2	
+65.41
+C#2 / Db2	
+69.30
+D2	
+73.42
+D#2 / Eb2	
+77.78
+E2	
+82.41
+F2	
+87.31
+F#2 / Gb2	
+92.50
+G2	
+98.00
+G#2 / Ab2	
+103.83
+A2	
+110.00
+A#2 / Bb2	
+116.54
+B2	
+123.47
+C3
+130,82
+*/
+    if( synth->tof_distance < 523 && synth->tof_status == 0){
+        synth->master_amp = 0.02f;        
+        
+        float_t current_note = (synth->tof_distance / 4) / 12;
+        if(current_note < 1){
+            synth->note = 65;
+        }else if(current_note < 2){
+            synth->note = 69;
+        }else if(current_note < 3){
+            synth->note = 73;
+        }else if(current_note < 4){
+            synth->note = 78;
+        }else if(current_note < 5){
+            synth->note = 82;
+        }else if(current_note < 6){
+            synth->note = 87;
+        }else if(current_note < 7){
+            synth->note = 93;
+        }else if(current_note < 8){
+            synth->note = 98;
+        }else if(current_note < 9){
+            synth->note = 104;
+        }else if(current_note < 10){
+            synth->note = 110;
+        }else if(current_note < 11){
+            synth->note = 117;
+        }else if(current_note < 12){
+            synth->note = 123;
+        }
+
+        //if(!synth->note_on){
+        //   synth->adsr_reset = true; 
+        //}
+        synth->note_on = true;
+        
+    }else {
+        synth->note_on = false;
+        synth->adsr_reset = true;
+    }
+        
+    
+    //    synth->note_on = true;
+
+
+}
+
+//Helper functions to get and set ADSR
+void synth_set_attack(synth_data_t *synth, int32_t attack){
+    synth->attack = attack;
+}
+int32_t synth_get_attack(synth_data_t *synth){
+    return synth->attack;
+}
+
+void synth_set_decay(synth_data_t *synth, int32_t decay){
+    synth->decay = decay;
+}
+int32_t synth_get_decay(synth_data_t *synth){
+    return synth->decay;
+}
+
+void synth_set_sustain(synth_data_t *synth, int32_t sustain){
+    synth->sustain = sustain;
+}
+int32_t synth_get_sustain(synth_data_t *synth){
+    return synth->sustain;
+}
+
+void synth_set_release(synth_data_t *synth, int32_t release){
+    synth->release = release;
+}
+int32_t synth_get_release(synth_data_t *synth){
+    return synth->release;
+}
+
 //We need to create an ADSR function i think what is needed ? calculate a step value to scale the current sample amplitude. and hook that to the oscilator function.
 //but instead of using the note hz value it needs to scale over time. there are probably many tutorials on this on the internet.
 //because of math reasons lets lock the code to a max of 1s attack,decay and release. I hawe to rewrite using floating point or learn how to scale from 32bit uint to 16bit uint.
@@ -160,38 +171,41 @@ void synth_osc1_adsr(synth_data_t *synth){
     float_t dec_amp = 0.000001;
     float_t rel_amp = 0.000001;
     
-    //sustain this value is only a amp value. figure out how to create this value it's a scale so 1/ ((65536/256) * sustain) ?
-    float_t sus_amp = ((float_t)synth->sustain)/256.0f;
+    //i think it's best to move these calculations inside the synth struct?
+    //and only update them when values are changed in the menu.
 
-    uint32_t atk_time_steps = ((48000/1000)*((synth->attack) * 10));    //I need to calculate the steps needed to reach the attack * 10 (i decided we go in 10ms steps)
-    uint32_t atk_step_size = 65536 / atk_time_steps;                    //I need to calculate the step size.
+        //sustain this value is only a amp value. figure out how to create this value it's a scale so 1/ ((65536/256) * sustain) ?
+        float_t sus_amp = ((float_t)synth->sustain)/100.0f;
 
-    //do the same for decay.
-    uint32_t dec_time_steps = ((48000/1000)*((synth->decay) * 10));
-    uint32_t dec_step_size = 65536 / dec_time_steps; //lets devide by uint32 because we can not fit a decay over 1s if we do not use floating point math.
-    
-    
-    //decay should stop when it reaches sustain level we need to handle this inside the loop.
-    //how to do this make it finish the count down when sustain level reached? we need to handle the ticks somhow.
-    //do the same for release.
-    uint32_t rel_time_steps = ((48000/1000)*((synth->release) * 10));
-    uint32_t rel_step_size = 65536 / rel_time_steps;
-    //release should start from the sustain level. we need to handle this someway. what is simple add a counter that counts down untill we reach sustain level ? and then calculate the level down?
+        uint32_t atk_time_steps = ((48000/1000)*((synth->attack) * 10));    //I need to calculate the steps needed to reach the attack * 10 (i decided we go in 10ms steps)
+        uint32_t atk_step_size = 65536 / atk_time_steps;                    //I need to calculate the step size.
 
-
-    if(synth->note_on)
-    {
-        //do some logic if note on(we are later going to send a note on true/false into the synth stryct now it's allways on.)
-
-        //if(synth->ticks < atk_time_steps){
-        //    synth->af = false;
-        //}
-        //if(synth->ticks < (atk_time_steps + dec_time_steps)){
-        //    synth->df = false;
-        //}
-        //do the attack scaling value.
-        //lets move the reset out of note_on true to note_on false.
+        //do the same for decay.
+        uint32_t dec_time_steps = ((48000/1000)*((synth->decay) * 10));
+        uint32_t dec_step_size = 65536 / dec_time_steps; //lets devide by uint32 because we can not fit a decay over 1s if we do not use floating point math.
         
+        
+        //decay should stop when it reaches sustain level we need to handle this inside the loop.
+        //how to do this make it finish the count down when sustain level reached? we need to handle the ticks somhow.
+        //do the same for release.
+        uint32_t rel_time_steps = ((48000/1000)*((synth->release) * 10));
+        uint32_t rel_step_size = 65536 / rel_time_steps;
+        //release should start from the sustain level. we need to handle this someway. what is simple add a counter that counts down untill we reach sustain level ? and then calculate the level down?
+    if(synth->adsr_reset && synth->note_on) { //if note is off I want to reset the ADSR but only if i started a new note after removing hand..
+        //synth->note_on = false;
+        synth->af = false;
+        synth->df = false;
+        synth->rf = false;
+        synth->adsr_reset = false;
+        synth->ticks = 0;
+        //reset all envelope timers.
+        synth->acc_atk_time = 0;
+        synth->acc_dec_time = (dec_step_size * dec_time_steps); //Here we reverse the decay calculation.
+        synth->acc_rel_time = (rel_step_size * rel_time_steps); //Here we reverse the release calculation.
+        //synth->master_amp = 0.0001f;
+    }
+
+    if(synth->note_on){
         //first test sustain so that we do not fall inside trap when attack and decay finished sustain will run over decay..
         if (synth->af && synth->df)
         {
@@ -213,9 +227,8 @@ void synth_osc1_adsr(synth_data_t *synth){
             int16_t temp_amp;
             for(int i = 0; i < BUFFER_SIZE; i++){
                 dec_amp = (float_t)synth->acc_dec_time/65536.0f; //devide 65536 by the accumulator to get the scalar value.
-                temp_amp = (int16_t)(synth->buffer[lr_inc] -32768); //-32768
-                if((dec_amp) <= (sus_amp)){
-                    //(synth->ticks) += (BUFFER_SIZE - i);
+                temp_amp = (int16_t)(synth->buffer[lr_inc] - 32768); //-32768
+                if((dec_amp) <= (sus_amp)){ //need to stop when decay reach sustain level.
                     (synth->ticks) = dec_time_steps;
                     i = BUFFER_SIZE - 1;
                 }else{
@@ -239,7 +252,7 @@ void synth_osc1_adsr(synth_data_t *synth){
             lr_inc = 0;
             int16_t temp_amp;
             for(int i = 0; i < BUFFER_SIZE; i++){
-                atk_amp = (float_t)synth->acc_atk_time/65535.0f; //devide 65536 by the accumulator to get the scalar value.
+                atk_amp = (float_t)synth->acc_atk_time/65536.0f; //devide 65536 by the accumulator to get the scalar value.
                 temp_amp = (int16_t)(synth->buffer[lr_inc]  - 32768);// - 32768;
                 temp_amp = temp_amp * atk_amp;
                 (synth->buffer[lr_inc++]) = (uint16_t)(temp_amp);
@@ -249,13 +262,13 @@ void synth_osc1_adsr(synth_data_t *synth){
             }
             if(synth->ticks >= atk_time_steps){
                 synth->af = true;
-                //synth->df = true; //lets test if only attack works.
                 synth->acc_atk_time = 0;
                 synth->ticks = 0;
             }
 
         }
-    }else if(!synth->note_on && !synth->rf){ //Ok i made the hack in the note selection function that sets master amp to inaudible level. think i need to move that after Release.
+    }
+    if(!synth->note_on && !synth->rf){ //Ok if note is off play the release.
         if(synth->af && synth->df){
             lr_inc = 0;
             int16_t temp_amp;
@@ -282,9 +295,8 @@ void synth_osc1_adsr(synth_data_t *synth){
             if(synth->ticks >= rel_time_steps){
                 synth->rf = true;
                 synth->ticks = 0;
-                synth->adsr_finished = true;
-                synth->rf = true;
-                
+                //synth->adsr_reset = true;
+                synth->master_amp = 0.0f;
             }
 
         }
@@ -298,7 +310,6 @@ void synth_osc1_adsr(synth_data_t *synth){
                 dec_amp = (float_t)synth->acc_dec_time/65536.0f; //devide 65536 by the accumulator to get the scalar value.
                 temp_amp = (int16_t)(synth->buffer[lr_inc] -32768); //-32768
                 if((dec_amp) <= (sus_amp)){
-                    //(synth->ticks) += (BUFFER_SIZE - i);
                     (synth->ticks) = dec_time_steps;
                     i = BUFFER_SIZE - 1;
                 }else{
@@ -322,7 +333,7 @@ void synth_osc1_adsr(synth_data_t *synth){
             lr_inc = 0;
             int16_t temp_amp;
             for(int i = 0; i < BUFFER_SIZE; i++){
-                atk_amp = (float_t)synth->acc_atk_time/65535.0f; //devide 65536 by the accumulator to get the scalar value.
+                atk_amp = (float_t)synth->acc_atk_time/65536.0f; //devide 65536 by the accumulator to get the scalar value.
                 temp_amp = (int16_t)(synth->buffer[lr_inc]  - 32768);// - 32768;
                 temp_amp = temp_amp * atk_amp;
                 (synth->buffer[lr_inc++]) = (uint16_t)(temp_amp);
@@ -338,15 +349,6 @@ void synth_osc1_adsr(synth_data_t *synth){
             }
 
         }
-    }else if(!synth->note_on && synth->adsr_finished) {
-        //synth->note_on = false;
-        synth->af = false;
-        synth->df = false;
-        synth->rf = false;
-        synth->ticks = 0;
-        synth->acc_dec_time = (dec_step_size * dec_time_steps); //Here we reverse the decay calculation.
-        synth->acc_rel_time = (rel_step_size * rel_time_steps); //Here we reverse the release calculation.
-        synth->master_amp = 0.0001f;
     }
 }    
 void synth_master_volume(synth_data_t *synth){

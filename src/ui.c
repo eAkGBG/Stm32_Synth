@@ -75,13 +75,13 @@ void synth_ui_nav_prev(synth_ui_t *ui){
     
 }
 void synth_ui_val_up(synth_ui_t *ui){
-    if(*ui->menu_items[ui->active_menu_item].value < 255){
-        (*ui->menu_items[ui->active_menu_item].value) ++;
+    if(*ui->menu_items[ui->active_menu_item].value < 95){
+        (*ui->menu_items[ui->active_menu_item].value) += 5;
     }
 }
 void synth_ui_val_down(synth_ui_t *ui){
-    if(*ui->menu_items[ui->active_menu_item].value > 0){
-        (*ui->menu_items[ui->active_menu_item].value) --;
+    if(*ui->menu_items[ui->active_menu_item].value > 5){
+        (*ui->menu_items[ui->active_menu_item].value) -= 5;
     }
 }
 
