@@ -28,9 +28,10 @@ typedef struct synth_data_t {
     bool af; 
     bool df;
     bool rf;
-
+    bool adsr_finished;
+    
     volatile uint16_t phase; //this is used to generate the Wave form
-    uint32_t step; //this is used to calculate the valu change for each sample from the phase
+    uint32_t step; //this is used to calculate the value change for each sample from the phase
     uint32_t ticks; //keeps track of time wonder how manny i need this is how big the number is. 4 294 967 295/48000 = 89 478 seconds. that is more then enough..
     uint16_t buffer[BUFFER_SIZE*2]; // for stereo need to alternate L/R values so buffer to sound device needs to be x2 BUFFER_SIZE
 

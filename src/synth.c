@@ -36,6 +36,7 @@ C3
     if( synth->tof_distance < 523 && synth->tof_status == 0){
         synth->master_amp = 0.02f;
         synth->note_on = true;
+        //synth->adsr_finished = true; //debug hack here..
         float_t current_note = (synth->tof_distance / 4) / 12;
         if(current_note < 1){
             synth->note = 65;
@@ -63,7 +64,6 @@ C3
             synth->note = 123;
         }
     } else {
-        synth->master_amp = 0.0001f;
         synth->note_on = false;
     }
 
@@ -101,14 +101,35 @@ int32_t synth_get_release(synth_data_t *synth){
 void synth_data_init(synth_data_t *synth){
     synth->attack = 1;
     synth->decay = 30;
-    synth->sustain = 50;
-    synth->release = 10;
+    synth->sustain = 100;
+    synth->release = 90;
     synth->master_amp = MASTER_AMP;
     synth->note = 440; //init with A
     synth->phase = 0;
     synth->step = 65536*(synth->note)/SAMPLE_RATE; //Need to solve how to handle notes. A lookup table?
     synth->ticks = 0; //total time for our tics in 48khz will last for 89 478 seconds. enough to never run out of time steps.
     synth->note_on = false;
+    synth->adsr_finished = true;
+    synth->af = true;
+    synth->df = true;
+    synth->rf = true;
+
+    //i think that i should put these values inside the synth struct. So that we only re calculate them on note off.
+
+    //uint32_t atk_time_steps = ((48000/1000)*((synth->attack) * 10));    //I need to calculate the steps needed to reach the attack * 10 (i decided we go in 10ms steps)
+    //uint32_t atk_step_size = 65536 / atk_time_steps;                    //I need to calculate the step size.
+
+    //do the same for decay.
+    uint32_t dec_time_steps = ((48000/1000)*((synth->decay) * 10));
+    uint32_t dec_step_size = 65536 / dec_time_steps; //lets devide by uint32 because we can not fit a decay over 1s if we do not use floating point math.
+    
+    //do the same for release.
+    uint32_t rel_time_steps = ((48000/1000)*((synth->release) * 10));
+    uint32_t rel_step_size = 65536 / rel_time_steps;
+
+    //here initialized decay and release counters.
+    synth->acc_dec_time = (dec_step_size * dec_time_steps); //Here we reverse the decay calculation.
+    synth->acc_rel_time = (rel_step_size * rel_time_steps); //Here we reverse the release calculation.
     
     synth->set_attack = synth_set_attack;
     synth->get_attack = synth_get_attack;
@@ -155,7 +176,6 @@ void synth_osc1_adsr(synth_data_t *synth){
     //do the same for release.
     uint32_t rel_time_steps = ((48000/1000)*((synth->release) * 10));
     uint32_t rel_step_size = 65536 / rel_time_steps;
-    synth->acc_rel_time = rel_step_size * rel_time_steps; //Here we reverse the release calculation.
     //release should start from the sustain level. we need to handle this someway. what is simple add a counter that counts down untill we reach sustain level ? and then calculate the level down?
 
 
@@ -188,7 +208,7 @@ void synth_osc1_adsr(synth_data_t *synth){
 
         //ok lets move this infront of attack also to make the if statements fall in line.
         //ToDo: we hawe to count in reverse here.!
-         if(synth->af && !synth->df){
+        if(synth->af && !synth->df){
             lr_inc = 0;
             int16_t temp_amp;
             for(int i = 0; i < BUFFER_SIZE; i++){
@@ -235,12 +255,98 @@ void synth_osc1_adsr(synth_data_t *synth){
             }
 
         }
-    }else if(!synth->note_on) {
+    }else if(!synth->note_on && !synth->rf){ //Ok i made the hack in the note selection function that sets master amp to inaudible level. think i need to move that after Release.
+        if(synth->af && synth->df){
+            lr_inc = 0;
+            int16_t temp_amp;
+            rel_amp = (float_t)synth->acc_rel_time/65536.0f;
+            while(rel_amp >= sus_amp){
+                    synth->acc_rel_time -= rel_step_size;
+                    rel_amp = (float_t)synth->acc_rel_time/65536.0f;
+                    (synth->ticks)++;
+            }
+            
+            for(int i = 0; i < BUFFER_SIZE; i++){
+                rel_amp = (float_t)synth->acc_rel_time/65536.0f; //devide 65536 by the accumulator to get the scalar value.
+                temp_amp = (int16_t)(synth->buffer[lr_inc] - 32768); //-32768
+                
+                temp_amp = temp_amp * rel_amp;
+                
+                (synth->buffer[lr_inc++]) = (uint16_t)(temp_amp);
+                (synth->buffer[lr_inc++]) = (uint16_t)(temp_amp);
+                synth->acc_rel_time -= rel_step_size; //subtract so that we decrease volume.
+                (synth->ticks)++; //Remember we need to put pointers inside () or else C does stupid stuff with adresses
+                
+                
+            }
+            if(synth->ticks >= rel_time_steps){
+                synth->rf = true;
+                synth->ticks = 0;
+                synth->adsr_finished = true;
+                synth->rf = true;
+                
+            }
+
+        }
+        //we need to finish playing whole adsr! if note is off.
+        //ok lets move this infront of attack also to make the if statements fall in line.
+        //ToDo: we hawe to count in reverse here.!
+        if(synth->af && !synth->df){
+            lr_inc = 0;
+            int16_t temp_amp;
+            for(int i = 0; i < BUFFER_SIZE; i++){
+                dec_amp = (float_t)synth->acc_dec_time/65536.0f; //devide 65536 by the accumulator to get the scalar value.
+                temp_amp = (int16_t)(synth->buffer[lr_inc] -32768); //-32768
+                if((dec_amp) <= (sus_amp)){
+                    //(synth->ticks) += (BUFFER_SIZE - i);
+                    (synth->ticks) = dec_time_steps;
+                    i = BUFFER_SIZE - 1;
+                }else{
+                    temp_amp = temp_amp * dec_amp;
+                    
+                    (synth->buffer[lr_inc++]) = (uint16_t)(temp_amp);
+                    (synth->buffer[lr_inc++]) = (uint16_t)(temp_amp);
+                    synth->acc_dec_time -= dec_step_size; //subtract so that we decrease volume.
+                    (synth->ticks)++; //Remember we need to put pointers inside () or else C does stupid stuff with adresses
+                }
+                
+            }
+            if(synth->ticks >= dec_time_steps){
+                synth->df = true;
+                synth->ticks = 0;
+            }
+
+        }
+
+        if(!synth->af && !synth->df){
+            lr_inc = 0;
+            int16_t temp_amp;
+            for(int i = 0; i < BUFFER_SIZE; i++){
+                atk_amp = (float_t)synth->acc_atk_time/65535.0f; //devide 65536 by the accumulator to get the scalar value.
+                temp_amp = (int16_t)(synth->buffer[lr_inc]  - 32768);// - 32768;
+                temp_amp = temp_amp * atk_amp;
+                (synth->buffer[lr_inc++]) = (uint16_t)(temp_amp);
+                (synth->buffer[lr_inc++]) = (uint16_t)(temp_amp);
+                synth->acc_atk_time += atk_step_size;
+                (synth->ticks)++; //Remember we need to put pointers inside () or else C does stupid stuff with adresses
+            }
+            if(synth->ticks >= atk_time_steps){
+                synth->af = true;
+                //synth->df = true; //lets test if only attack works.
+                synth->acc_atk_time = 0;
+                synth->ticks = 0;
+            }
+
+        }
+    }else if(!synth->note_on && synth->adsr_finished) {
         //synth->note_on = false;
         synth->af = false;
         synth->df = false;
+        synth->rf = false;
         synth->ticks = 0;
-        synth->acc_dec_time = ((dec_step_size * dec_time_steps) - dec_step_size); //Here we reverse the decay calculation.
+        synth->acc_dec_time = (dec_step_size * dec_time_steps); //Here we reverse the decay calculation.
+        synth->acc_rel_time = (rel_step_size * rel_time_steps); //Here we reverse the release calculation.
+        synth->master_amp = 0.0001f;
     }
 }    
 void synth_master_volume(synth_data_t *synth){
