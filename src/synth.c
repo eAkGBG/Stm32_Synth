@@ -99,9 +99,9 @@ int32_t synth_get_release(synth_data_t *synth){
 }
 
 void synth_data_init(synth_data_t *synth){
-    synth->attack = 100;
-    synth->decay = 90;
-    synth->sustain = 200;
+    synth->attack = 1;
+    synth->decay = 30;
+    synth->sustain = 50;
     synth->release = 10;
     synth->master_amp = MASTER_AMP;
     synth->note = 440; //init with A
@@ -188,7 +188,7 @@ void synth_osc1_adsr(synth_data_t *synth){
 
         //ok lets move this infront of attack also to make the if statements fall in line.
         //ToDo: we hawe to count in reverse here.!
-        if(synth->af && !synth->df){
+         if(synth->af && !synth->df){
             lr_inc = 0;
             int16_t temp_amp;
             for(int i = 0; i < BUFFER_SIZE; i++){
@@ -219,7 +219,7 @@ void synth_osc1_adsr(synth_data_t *synth){
             lr_inc = 0;
             int16_t temp_amp;
             for(int i = 0; i < BUFFER_SIZE; i++){
-                atk_amp = (float_t)synth->acc_atk_time/65536.0f; //devide 65536 by the accumulator to get the scalar value.
+                atk_amp = (float_t)synth->acc_atk_time/65535.0f; //devide 65536 by the accumulator to get the scalar value.
                 temp_amp = (int16_t)(synth->buffer[lr_inc]  - 32768);// - 32768;
                 temp_amp = temp_amp * atk_amp;
                 (synth->buffer[lr_inc++]) = (uint16_t)(temp_amp);
@@ -229,6 +229,8 @@ void synth_osc1_adsr(synth_data_t *synth){
             }
             if(synth->ticks >= atk_time_steps){
                 synth->af = true;
+                //synth->df = true; //lets test if only attack works.
+                synth->acc_atk_time = 0;
                 synth->ticks = 0;
             }
 
